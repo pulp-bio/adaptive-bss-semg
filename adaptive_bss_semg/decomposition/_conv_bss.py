@@ -29,11 +29,9 @@ import pandas as pd
 import torch
 from scipy.signal import find_peaks
 
-from adaptive_bss_semg import preprocessing, spike_stats
-from adaptive_bss_semg._errors import ConvergenceWarning
+from adaptive_bss_semg import preprocessing, spike_stats, utils
 
 from . import _contrast_functions as cf
-from ._utils import detect_spikes
 
 
 class ConvBSS:
@@ -272,7 +270,7 @@ class ConvBSS:
         ics_bin = np.zeros(shape=ics_t.shape, dtype=np.uint8)
         n_mu = ics_bin.shape[0]
         for i in range(n_mu):
-            spike_loc_i = detect_spikes(
+            spike_loc_i = utils.detect_spikes(
                 ics_t[i],
                 ref_period=self._ref_period,
                 threshold=self._spike_ths[i].item(),
@@ -518,7 +516,7 @@ class ConvBSS:
         """IC improvement iteration."""
 
         ic_i_t = w_i_t @ emg_white_t
-        spike_loc, spike_th, sil = detect_spikes(
+        spike_loc, spike_th, sil = utils.detect_spikes(
             ic_i_t,
             ref_period=self._ref_period,
             compute_sil=True,
@@ -537,7 +535,7 @@ class ConvBSS:
             w_i_new_t /= torch.linalg.norm(w_i_new_t)
 
             ic_i_t = w_i_new_t @ emg_white_t
-            spike_loc_new, spike_th_new, sil_new = detect_spikes(
+            spike_loc_new, spike_th_new, sil_new = utils.detect_spikes(
                 ic_i_t,
                 ref_period=self._ref_period,
                 compute_sil=True,

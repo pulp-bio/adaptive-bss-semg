@@ -19,49 +19,17 @@ limitations under the License.
 from __future__ import annotations
 
 import numpy as np
-import pandas as pd
 import torch
-from scipy.signal import correlate
-
-
-def power_spectrum(x: np.ndarray, fs: float) -> pd.DataFrame:
-    """Compute the power spectrum of a given signal.
-
-    Parameters
-    ----------
-    x : array
-        Signal with shape (n_channels, n_samples).
-    fs : float
-        Sampling frequency.
-
-    Returns
-    -------
-    DataFrame
-        Power spectrum for each channel.
-    """
-    n_channels, n_samples = x.shape
-    spec_len = n_samples // 2 + 1
-    # Compute frequencies
-    freqs = np.fft.rfftfreq(n_samples, 1 / fs)
-    idx = np.argsort(freqs)
-    freqs = freqs[idx]
-    # Compute power spectrum channel-wise
-    pow_spec = np.zeros(shape=(spec_len, n_channels))
-    for i in range(n_channels):
-        # Compute FFT for current channel
-        ch_fft = np.fft.rfft(x[i])
-        # Compute power spectrum for current channel
-        ch_pow_spec = np.abs(ch_fft) ** 2
-        pow_spec[:, i] = ch_pow_spec[idx]
-
-    return pd.DataFrame(pow_spec, index=freqs)
+from scipy import signal
+from scipy.cluster.vq import kmeans2
+from sklearn.metrics import silhouette_score
 
 
 def _compute_delay(s1: np.ndarray, s2: np.ndarray) -> int:
     """Find the lag between two pulse trains with the same length."""
 
     # Compute cross-correlation
-    corr = correlate(s2, s1, mode="same")
+    corr = signal.correlate(s2, s1, mode="same")
     delay_steps = int(round(s1.shape[0] / 2))
     delay_arr = np.arange(-delay_steps, delay_steps)
 
@@ -253,34 +221,53 @@ def compute_waveforms(
     return wfs
 
 
-def slice_by_label(
-    s: np.ndarray,
-    labels: list[tuple[str, int, int]],
-    target_label: str,
-    margin: int = 0,
-) -> list[np.ndarray]:
-    """Given a signal and its range-based labels, return all the contiguous sub-sequences of the signal corresponding
-    to the given target label.
+def detect_spikes(
+    ic: np.ndarray | torch.Tensor,
+    ref_period: int,
+    threshold: float | None = None,
+    compute_sil: bool = False,
+    seed: int | np.random.Generator | None = None,
+) -> tuple[np.ndarray, float, float]:
+    """Detect spikes in the given IC.
 
     Parameters
     ----------
-    s : ndarray
-        Signal with shape (n_channels, n_samples).
-    labels : list of tuple of (str, int, int)
-        List containing, for each action block, the label of the action together with the first and the last samples.
-    target_label : str
-        Target label.
-    margin : int
-        Margin of the sub-sequences (in samples).
+    ic : ndarray or Tensor
+        Estimated IC with shape (n_samples,).
+    ref_period : int
+        Refractory period for spike detection.
+    threshold : float or None, default=None
+        Threshold for spike/noise classification.
+    compute_sil : bool, default=False
+        Whether to compute SIL measure or not.
+    seed : int or Generator or None, default=None
+        Seed for PRNG.
 
     Returns
     -------
-    list[ndarray]
-        List of contiguous sub-sequences corresponding to the target label.
+    ndarray
+        Location of spikes.
+    float
+        Threshold for spike/noise classification.
+    float
+        SIL measure.
     """
-    slice_list = []
-    for label, idx_from, idx_to in labels:
-        if label == target_label:
-            slice_list.append(s[:, idx_from - margin : idx_to + margin])
+    ic_arr = ic if isinstance(ic, np.ndarray) else ic.cpu().numpy()
 
-    return slice_list
+    peaks, _ = signal.find_peaks(ic_arr, height=0, distance=ref_period)
+    ic_peaks = ic_arr[peaks]
+
+    if threshold is None:
+        centroids, labels = kmeans2(ic_peaks.reshape(-1, 1), k=2, minit="++", seed=seed)
+        high_cluster_idx = np.argmax(centroids)  # consider only high peaks
+        spike_loc = peaks[labels == high_cluster_idx]
+        threshold = centroids.mean()
+    else:
+        labels = ic_peaks >= threshold
+        spike_loc = peaks[labels]
+
+    sil = np.nan
+    if compute_sil:
+        sil = float(silhouette_score(ic_peaks.reshape(-1, 1), labels))
+
+    return spike_loc, threshold, sil

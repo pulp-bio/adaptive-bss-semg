@@ -3,6 +3,13 @@
 ## Introduction
 Code to reproduce our paper "An Adaptive Dynamic Mixing Model for sEMG Real-Time ICA on an Ultra-Low Power Processor" [1].
 
+## Environment setup
+The code is compatible with Python 3.7+. To create and activate the Python environment, run the following commands:
+```
+python -m venv <ENV_NAME>
+source <ENV_NAME>/bin/activate
+```
+
 ## Usage
 Run the Jupyter notebook [`Adaptive Decomposition of sEMG signals.ipynb`](https://github.com/pulp-bio/adaptive-bss-semg/blob/main/Adaptive%20Decomposition%20of%20sEMG%20signals.ipynb) 
 to perform both the offline calibration and the online adaptation.

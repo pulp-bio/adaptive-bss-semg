@@ -10,6 +10,11 @@ python -m venv <ENV_NAME>
 source <ENV_NAME>/bin/activate
 ```
 
+Then, **from within the virtual environment**, the required packages can be installed with the following command:
+```
+pip install -r requirements.txt
+```
+
 ## Usage
 Run the Jupyter notebook [`Adaptive Decomposition of sEMG signals.ipynb`](https://github.com/pulp-bio/adaptive-bss-semg/blob/main/Adaptive%20Decomposition%20of%20sEMG%20signals.ipynb) 
 to perform both the offline calibration and the online adaptation.
